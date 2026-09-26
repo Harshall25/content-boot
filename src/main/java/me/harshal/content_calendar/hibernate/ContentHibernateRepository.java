@@ -12,6 +12,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Every method takes the caller's access key and only ever touches rows that
+ * belong to it. That "and accessKey = :key" in each query is the whole reason
+ * one user cannot see or delete another user's content - never drop it.
+ */
 @Repository
 public class ContentHibernateRepository {
 
@@ -21,11 +26,13 @@ public class ContentHibernateRepository {
         this.sessionFactory = sessionFactory;
     }
 
-    public Content save(Content content) {
+    public Content save(String accessKey, Content content) {
         try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
             try {
                 ContentEntity entity = ContentEntity.fromRecord(content);
+                entity.setId(null);                 // the database assigns ids, never the client
+                entity.setAccessKey(accessKey);
                 session.persist(entity);
                 tx.commit();
                 return entity.toRecord();
@@ -36,29 +43,25 @@ public class ContentHibernateRepository {
         }
     }
 
-    public Optional<Content> findById(int id) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
-            ContentEntity entity =
-                    session.find(ContentEntity.class, id);
-
-            return Optional.ofNullable(entity)
+    public Optional<Content> findById(String accessKey, int id) {
+        try (Session session = sessionFactory.openSession()) {
+            return Optional.ofNullable(findOwned(session, accessKey, id))
                     .map(ContentEntity::toRecord);
         }
     }
 
-    public List<Content> findAll() {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public List<Content> findAll(String accessKey) {
+        try (Session session = sessionFactory.openSession()) {
             return session
                     .createQuery(
-                            "FROM ContentEntity ORDER BY id",
+                            """
+                            FROM ContentEntity
+                            WHERE accessKey = :key
+                            ORDER BY id
+                            """,
                             ContentEntity.class
                     )
+                    .setParameter("key", accessKey)
                     .list()
                     .stream()
                     .map(ContentEntity::toRecord)
@@ -66,20 +69,18 @@ public class ContentHibernateRepository {
         }
     }
 
-    public List<Content> findByStatus(Status status) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public List<Content> findByStatus(String accessKey, Status status) {
+        try (Session session = sessionFactory.openSession()) {
             return session
                     .createQuery(
                             """
                             FROM ContentEntity
-                            WHERE status = :status
+                            WHERE accessKey = :key AND status = :status
                             ORDER BY id
                             """,
                             ContentEntity.class
                     )
+                    .setParameter("key", accessKey)
                     .setParameter("status", status)
                     .list()
                     .stream()
@@ -88,20 +89,18 @@ public class ContentHibernateRepository {
         }
     }
 
-    public List<Content> findByContentType(Type contentType) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public List<Content> findByContentType(String accessKey, Type contentType) {
+        try (Session session = sessionFactory.openSession()) {
             return session
                     .createQuery(
                             """
                             FROM ContentEntity
-                            WHERE contentType = :type
+                            WHERE accessKey = :key AND contentType = :type
                             ORDER BY id
                             """,
                             ContentEntity.class
                     )
+                    .setParameter("key", accessKey)
                     .setParameter("type", contentType)
                     .list()
                     .stream()
@@ -110,23 +109,19 @@ public class ContentHibernateRepository {
         }
     }
 
-    public List<Content> searchByTitle(String fragment) {
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public List<Content> searchByTitle(String accessKey, String fragment) {
+        try (Session session = sessionFactory.openSession()) {
             return session
                     .createQuery(
                             """
                             FROM ContentEntity
-                            WHERE LOWER(title) LIKE :query
+                            WHERE accessKey = :key AND LOWER(title) LIKE :query
                             ORDER BY id
                             """,
                             ContentEntity.class
                     )
-                    .setParameter(
-                            "query",
-                            "%" + fragment.toLowerCase() + "%"
-                    )
+                    .setParameter("key", accessKey)
+                    .setParameter("query", "%" + fragment.toLowerCase() + "%")
                     .list()
                     .stream()
                     .map(ContentEntity::toRecord)
@@ -134,28 +129,29 @@ public class ContentHibernateRepository {
         }
     }
 
-    public long countByStatus(Status status) {
+    public long countByStatus(String accessKey, Status status) {
         try (Session session = sessionFactory.openSession()) {
             return session
                     .createQuery(
                             """
                             SELECT COUNT(c)
                             FROM ContentEntity c
-                            WHERE c.status = :status
+                            WHERE c.accessKey = :key AND c.status = :status
                             """,
                             Long.class
                     )
+                    .setParameter("key", accessKey)
                     .setParameter("status", status)
                     .getSingleResult();
         }
     }
 
-    public boolean update(Content content) {
+    /** Load-then-change inside one transaction; dirty checking writes the UPDATE on commit. */
+    public boolean update(String accessKey, Content content) {
         try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
             try {
-                ContentEntity entity =
-                        session.find(ContentEntity.class, content.id());
+                ContentEntity entity = findOwned(session, accessKey, content.id());
                 if (entity == null) {
                     tx.rollback();
                     return false;
@@ -164,11 +160,11 @@ public class ContentHibernateRepository {
                 entity.setDescription(content.description());
                 entity.setStatus(content.status());
                 entity.setContentType(content.contentType());
-                entity.setDateUpdated(LocalDateTime.now());
+                entity.setDueDate(content.dueDate());
                 entity.setUrl(content.url());
+                entity.setDateUpdated(LocalDateTime.now());
                 tx.commit();
                 return true;
-
             } catch (RuntimeException e) {
                 tx.rollback();
                 throw e;
@@ -176,29 +172,19 @@ public class ContentHibernateRepository {
         }
     }
 
-    public boolean updateStatus(int id, Status newStatus) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public boolean updateStatus(String accessKey, int id, Status newStatus) {
+        try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
-
             try {
-                ContentEntity entity =
-                        session.find(ContentEntity.class, id);
-
+                ContentEntity entity = findOwned(session, accessKey, id);
                 if (entity == null) {
                     tx.rollback();
                     return false;
                 }
-
                 entity.setStatus(newStatus);
                 entity.setDateUpdated(LocalDateTime.now());
-
                 tx.commit();
-
                 return true;
-
             } catch (RuntimeException e) {
                 tx.rollback();
                 throw e;
@@ -206,28 +192,18 @@ public class ContentHibernateRepository {
         }
     }
 
-    public boolean deleteById(int id) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
+    public boolean deleteById(String accessKey, int id) {
+        try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
-
             try {
-                ContentEntity entity =
-                        session.find(ContentEntity.class, id);
-
+                ContentEntity entity = findOwned(session, accessKey, id);
                 if (entity == null) {
                     tx.rollback();
                     return false;
                 }
-
                 session.remove(entity);
-
                 tx.commit();
-
                 return true;
-
             } catch (RuntimeException e) {
                 tx.rollback();
                 throw e;
@@ -235,14 +211,14 @@ public class ContentHibernateRepository {
         }
     }
 
-    public void deleteAll() {
-        try (Session session =
-                     sessionFactory.openSession()) {
+    /** Deletes only this user's content - never the whole table. */
+    public void deleteAll(String accessKey) {
+        try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
             try {
-                session.createMutationQuery(
-                        "DELETE FROM ContentEntity"
-                ).executeUpdate();
+                session.createMutationQuery("DELETE FROM ContentEntity WHERE accessKey = :key")
+                        .setParameter("key", accessKey)
+                        .executeUpdate();
                 tx.commit();
             } catch (RuntimeException e) {
                 tx.rollback();
@@ -251,12 +227,28 @@ public class ContentHibernateRepository {
         }
     }
 
-    public boolean existsById(int id) {
-
-        try (Session session =
-                     sessionFactory.openSession()) {
-
-            return session.find(ContentEntity.class, id) != null;
+    public boolean existsById(String accessKey, int id) {
+        try (Session session = sessionFactory.openSession()) {
+            return findOwned(session, accessKey, id) != null;
         }
+    }
+
+    /**
+     * Finds a row only if it belongs to this key. A row owned by someone else
+     * comes back as null, exactly like a row that does not exist, so the API
+     * answers 404 and never even reveals that the id is taken.
+     */
+    private ContentEntity findOwned(Session session, String accessKey, Integer id) {
+        if (id == null) {
+            return null;
+        }
+        return session
+                .createQuery(
+                        "FROM ContentEntity WHERE id = :id AND accessKey = :key",
+                        ContentEntity.class
+                )
+                .setParameter("id", id)
+                .setParameter("key", accessKey)
+                .uniqueResult();
     }
 }

@@ -1,0 +1,19 @@
+spring.application.name=content-calendar
+
+# Copy this file to application.properties (same folder) and fill in your database,
+# OR leave the placeholders and set the DB_URL / DB_USERNAME / DB_PASSWORD environment variables.
+# application.properties is git-ignored so real credentials never get committed.
+#
+# Neon shows a URL like  postgresql://USER:PASSWORD@HOST/DB?sslmode=require&channel_binding=require
+# For JDBC:  prefix it with jdbc:, move USER and PASSWORD into their own properties,
+#            drop channel_binding, and use the host WITHOUT "-pooler" (HikariCP already pools).
+spring.datasource.url=${DB_URL:jdbc:postgresql://YOUR_HOST/YOUR_DATABASE?sslmode=require}
+spring.datasource.username=${DB_USERNAME:YOUR_USERNAME}
+spring.datasource.password=${DB_PASSWORD}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.connection-timeout=30000
+spring.datasource.hikari.idle-timeout=600000
+spring.datasource.hikari.max-lifetime=1800000

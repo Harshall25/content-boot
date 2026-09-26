@@ -27,11 +27,12 @@ public class HibernateConfig {
         Configuration configuration = new Configuration();
 
         configuration.addAnnotatedClass(ContentEntity.class);   // register every @Entity here
+        configuration.addAnnotatedClass(UserEntity.class);
 
         // Hand Hibernate the pooled connections instead of raw driver settings
         configuration.getProperties().put("hibernate.connection.datasource", dataSource);
 
-        // validate = check ContentEntity matches the existing "content" table,
+        // validate = check the entities match the existing tables,
         // never change it. Run schema.sql yourself first.
         configuration.setProperty("hibernate.hbm2ddl.auto", "validate");
 

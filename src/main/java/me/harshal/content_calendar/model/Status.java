@@ -1,7 +1,7 @@
 package me.harshal.content_calendar.model;
 
 public enum Status {
-    IDEA,
+    TODO,
     IN_PROGRESS,
     COMPLETED,
 }

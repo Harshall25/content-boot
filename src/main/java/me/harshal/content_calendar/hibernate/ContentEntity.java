@@ -5,8 +5,8 @@ import me.harshal.content_calendar.model.Content;
 import me.harshal.content_calendar.model.Status;
 import me.harshal.content_calendar.model.Type;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 @Entity
 @Table(name = "content")
@@ -37,10 +37,15 @@ public class ContentEntity {
     private LocalDateTime dateUpdated;
 
     @Column(name = "due_date")
-    private Date dueDate;
+    private LocalDate dueDate;
 
     @Column(length = 500)
     private String url;
+
+    // Owner of this row. Deliberately not part of the Content record,
+    // so the key is never echoed back inside content JSON.
+    @Column(name = "access_key", length = 19)
+    private String accessKey;
 
     public ContentEntity() {
     }
@@ -137,12 +142,20 @@ public class ContentEntity {
         this.dateUpdated = dateUpdated;
     }
 
-    public void setDueDate(Date dueDate) {
+    public void setDueDate(LocalDate dueDate) {
         this.dueDate = dueDate;
     }
 
-    public Date getDueDate() {
+    public LocalDate getDueDate() {
         return dueDate;
+    }
+
+    public String getAccessKey() {
+        return accessKey;
+    }
+
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
     }
 
     public String getUrl() {

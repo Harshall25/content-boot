@@ -33,4 +33,27 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Secrets & local config (commit the .example files instead) ###
 src/main/resources/application.properties
+src/main/resources/application-*.properties
+.env
+.env.*
+!.env.example
+*.local
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+### Logs ###
+*.log
+logs/
+npm-debug.log*
+
+### OS files ###
+.DS_Store
+Thumbs.db
+desktop.ini
