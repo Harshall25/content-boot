@@ -1,18 +1,12 @@
 package me.harshal.content_calendar.hibernate;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import me.harshal.content_calendar.model.Content;
 import me.harshal.content_calendar.model.Status;
 import me.harshal.content_calendar.model.Type;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
 @Entity
 @Table(name = "content")
@@ -42,6 +36,9 @@ public class ContentEntity {
     @Column(name = "date_updated")
     private LocalDateTime dateUpdated;
 
+    @Column(name = "due_date")
+    private Date dueDate;
+
     @Column(length = 500)
     private String url;
 
@@ -57,6 +54,7 @@ public class ContentEntity {
                 contentType,
                 dateCreated,
                 dateUpdated,
+                dueDate,
                 url
         );
     }
@@ -77,6 +75,7 @@ public class ContentEntity {
                         : LocalDateTime.now();
 
         entity.dateUpdated = content.dateUpdated();
+        entity.dueDate = content.dueDate();
         entity.url = content.url();
 
         return entity;
@@ -136,6 +135,14 @@ public class ContentEntity {
 
     public void setDateUpdated(LocalDateTime dateUpdated) {
         this.dateUpdated = dateUpdated;
+    }
+
+    public void setDueDate(Date dueDate) {
+        this.dueDate = dueDate;
+    }
+
+    public Date getDueDate() {
+        return dueDate;
     }
 
     public String getUrl() {

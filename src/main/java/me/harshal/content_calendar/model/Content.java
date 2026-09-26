@@ -3,6 +3,7 @@ package me.harshal.content_calendar.model;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
 public record Content(
         Integer id,
@@ -12,6 +13,7 @@ public record Content(
         Type contentType,
         LocalDateTime dateCreated,
         LocalDateTime dateUpdated,
+        Date dueDate,
         String url
 ) {
 

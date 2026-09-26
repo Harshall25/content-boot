@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS content (
     content_type  VARCHAR(20),
     date_created  TIMESTAMP,
     date_updated  TIMESTAMP,
+    due_date      DATE,
     url           VARCHAR(500)
 );
